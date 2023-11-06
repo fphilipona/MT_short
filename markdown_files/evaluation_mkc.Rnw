@@ -1,0 +1,232 @@
+\documentclass{article}
+
+\usepackage{amsmath}
+\usepackage[vmargin=3cm, hmargin=2cm, headheight=14pt]{geometry}
+\usepackage[font=sf, labelfont={sf}, margin=1cm]{caption}
+\usepackage{placeins}
+\usepackage{hyperref}
+
+\begin{document}
+
+<<c1, include = FALSE>>= 
+library(knitr)
+opts_chunk$set(fig.path = 'plots/p', 
+               echo = FALSE, 
+               results = 'hide',
+               fig.height = 4.5,
+               fig.align = "center",
+               cache = FALSE,
+               message=FALSE,
+               warning=FALSE)
+library("here")
+i_am("markdown_files/evaluation_mkc.Rnw")
+source(here("code", "utils.R"))
+library("reshape2")
+@
+
+% =============================================================================
+\section{The Model} \label{sec:Model}
+% =============================================================================
+
+The marginal distributions are of the form: $$y_{g,s}\sim NBin(\mu_{g,s}, \sigma_{g,s}),$$ with $$log(\mu_{g,s})=log(nc_{s} \times \boldsymbol{w_{s}^T} \times \boldsymbol{m_{g}} \times sd_{s}) + gd_{g} + se_{s,g}$$ and $$log(\sigma_{g,s})=\alpha_{g}+\beta_{g}\times log(nc_{s} \times \boldsymbol{w_{s}^T} \times \boldsymbol{m_{g}} \times sd_{s}).$$ The expression $y$ of gene $g$ in spot $s$, $y_{g,s}$, depends on the level of the mean $\mu_{g,s}$ on $nc_{s}$, the number of cells in spot $s$, $\boldsymbol{w_{s}^T}$, the cell type proportions of spot $s$, $\boldsymbol{m_{g}}$, the mean contributions of the cell types to the expression of gene $g$, $sd_{s}$, a spot detection efficiency for the experiment, $gd_{g}$, a (log) gene detection efficiency for the experiment, and $se_{s,g}$ the (log) spatial effect of spot $s$ on the expression of gene $g$. The term $nc_{s} \times \boldsymbol{w_{s}^T} \times \boldsymbol{m_{g}}$ can be thought of as a theoretical mean, without taking into account technical errors in the experiment and a spatial effect on gene expressions beyond that which is due to spatial distribution of the cell types. The technical errors eluded to above are encompassed in $sd_{s}$ and $gd_{g}$. The marginal distributions are combined to spot level distributions with a Gaussian copula. For more details see the actual master thesis.
+
+
+% =============================================================================
+\section{Some distributions of estimated parameters for the mouse kidney dataset} \label{sec:distributions_estimation}
+% =============================================================================
+
+<<c2, echo = FALSE>>=
+#mkc parameter estimation, data loading
+load(here("data", "mkc_estimation.rdata"))
+cop.list = x[["copula.list"]]
+coef.mat = x[["coef.mat"]]
+spot.coef = x[["spot.coef"]]
+genes = rownames(x[["coef.mat"]])
+coords = x[["coords"]]
+regions = x[["regions"]]
+n.cells = x[["n.cells"]]
+gbar.mat = x[["gbar.mat"]]
+decon.res = x[["decon"]]
+pit.mat.disttrans = x[["pit.mat.disttrans"]]
+h.mat = helper.mat1(regions)
+spots = rownames(decon.res)
+genes = rownames(coef.mat)
+# dataprep
+input = readRDS(here("data", "mkc_prep.rds"))
+spe = input[["spe"]]
+counts.spe = input[["counts.spe"]]
+colnames(counts.spe) = lapply(colnames(counts.spe), function(x) chartr(".", "-", x))
+rm(input); rm(x)
+ncols = ncol(coef.mat)
+libsize.true = apply(counts.spe, 2, sum)
+@
+
+The estimated number of cells per spot can be inspected in figure~\ref{f:ncells_mkc}. Towards the middle of the sample the estimated
+number of cells are higher. The spot detection efficiencies (figure~\ref{f:sde_mkc}) have no spatial structure which is in accordance with the assumptions of the model.
+
+\begin{figure}[h]
+\begin{minipage}[c]{0.5\textwidth}
+<<c7, echo = FALSE>>= 
+# number of cells
+cell.plot(n.cells, spe, main="")
+@
+  \caption{Estimated number of cells per spot for the mouse kidney ST data}
+\label{f:ncells_mkc}
+\end{minipage}
+\hfill
+\begin{minipage}[c]{0.5\textwidth}
+<<c8, echo = FALSE>>= 
+# sde
+cell.plot(spot.coef, spe, main="")
+@
+  \caption{Estimated spot detection efficiencies for the mouse kidney ST data}
+\label{f:sde_mkc}
+\end{minipage}
+\end{figure}
+
+For the two genes Kap and Gpx3 the domain effects on the mean of their expressions are shwon in figure~\ref{f:re_mkc_Kap} for gene Kap and figure~\ref{f:re_mkc_Gpx3} for gene Gpx3. The domain effects are set to give a geometric mean of 1.
+
+\begin{figure}[h]
+\begin{minipage}[c]{0.5\textwidth}
+<<c9, echo = FALSE>>= 
+# regional effect CAMK2N1
+gene = "Kap"
+cell.plot(exp(h.mat[,2:ncol(h.mat)]%*%coef.mat[gene, 4:ncols]), spe, main="", limits_scale=c(0.2, 1.8))
+@
+  \caption{Domain effects of gene Kap for the DLPFC ST data}
+\label{f:re_mkc_Kap}
+\end{minipage}
+\hfill
+\begin{minipage}[c]{0.5\textwidth}
+<<c10, echo = FALSE>>= 
+# regional effect STMN1
+gene = "Gpx3"
+cell.plot(exp(h.mat[,2:ncol(h.mat)]%*%coef.mat[gene, 4:ncols]), spe, main="", limits_scale=c(0.2, 1.8))
+@
+  \caption{Domain effects of gene Gpx3 for the DLPFC ST data}
+\label{f:re_mkc_Gpx3}
+\end{minipage}
+\end{figure}
+
+<<c11, echo = FALSE>>= 
+gene = "Tmsb4x"
+df1 = makedf_regions(gene=gene, regions, celltypes.spots=decon.res, gbar.mat=gbar.mat,
+                     counts.spe=counts.spe, n.cells=n.cells, spots.coef=spot.coef)
+abc1 = get.rates.regions(gene, coef.mat, decon.res, gbar.mat, spot.coef, n.cells, h.mat)
+vari = abc1[,2]+abc1[,1]*abc1[,2]**2
+@
+
+Fitted means and standard deviations per spot for gene Tmsb4x can be found in figure~\ref{f:mean_mkc_Tmsb4x} and figure~\ref{f:sd_mkc_Tmsb4x}.
+
+\begin{figure}[h]
+\begin{minipage}[c]{0.5\textwidth}
+<<c14, echo = FALSE>>= 
+# Fitted mean of gene Tmsb4x
+cell.plot(abc1[,2], spe, main="", limits_scale = c(0,20))
+@
+  \caption{Fitted mean of gene Tmsb4x for the DLPFC ST data}
+\label{f:mean_mkc_Tmsb4x}
+\end{minipage}
+\hfill
+\begin{minipage}[c]{0.5\textwidth}
+<<c15, echo = FALSE>>= 
+# Fitted standard deviation of gene Tmsb4x
+cell.plot(sqrt(vari), spe, main="", limits_scale = c(0,20))
+@
+  \caption{Fitted standard deviation of gene Kap for the DLPFC ST data}
+\label{f:sd_mkc_Tmsb4x}
+\end{minipage}
+\end{figure}
+
+Figure~\ref{f:hist_gde_mkc} shows estimated gene detection efficiencies for the mouse kidney dataset. These are mostly near zero, because the spot detection were set to be near 1 and the generally low efficiency of the VISIUM platform on which the spatial transcriptomic data was gathered compared to single cell RNA sequencing technologies.
+
+\begin{figure}[h]
+\centering
+\scalebox{.8}{
+<<c16, echo = FALSE>>= 
+# histogram of gde
+ggplot() + geom_histogram(aes(x=exp(coef.mat[,"gde"])), color="black", fill="white", bins=50) + xlab("gene detection efficiencies") + ylab("count")
+@
+}
+\caption{Histogram of the gene detection efficiecnies for the mouse kidney data. Most of the genes have a low estimated detection efficiency.}
+\label{f:hist_gde_mkc}
+\end{figure}
+
+\FloatBarrier
+\newpage
+
+% =============================================================================
+\section{Some plots to evaluate the simulate data} \label{sec:evaluate_simulation}
+% =============================================================================
+
+<<c17, echo = FALSE>>= 
+# load simulated expressions
+x = readRDS(here("data", "mkc_sim_gt0.rds"))
+expr.mat = x[["expr.mat"]]
+rm(x)
+mean.sim.genes = apply(expr.mat, 1, mean)
+mean.true.genes = apply(counts.spe[rownames(expr.mat),], 1, mean)
+var.sim.genes = apply(expr.mat, 1, var)
+var.true.genes = apply(counts.spe[rownames(expr.mat),], 1, var)
+@
+
+Gene-wise means and standard deviations are well preserved in the simulated data (figure~\ref{f:gwm_sim_true} and figure~\ref{f:gwsd_sim_true}). The spot-wise means and standard deviations are less well preserved, because the marginal expressions were fit for genes, not for spots (figure~\ref{f:gwsd_sim_true} and figure~\ref{f:spot_sd_sim_true}). 
+
+\begin{figure}[h]
+\centering
+\scalebox{.8}{
+<<c18, echo = FALSE>>=
+# simulated vs true means
+ggplot() + geom_point(aes(x = mean.true.genes, y = mean.sim.genes)) + xlab("observed gene-wise mean") + ylab("simulated gene-wise mean") + theme(panel.border = element_rect(colour = "black", fill=NA, linewidth = 1)) + geom_abline(slope=1, intercept = 0)
+@
+}
+\caption{Gene-wise means of observed vs simulated data. The means are preserved in the simulated data.}
+\label{f:gwm_sim_true}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\scalebox{.8}{
+<<c19, echo = FALSE>>=
+# simulated vs true sds
+ggplot() + geom_point(aes(x = sqrt(var.true.genes), y = sqrt(var.sim.genes))) + xlab("observed gene-wise standard deviation") + ylab("simulated gene-wise standard deviation") + theme(panel.border = element_rect(colour = "black", fill=NA, linewidth = 1)) + geom_abline(slope=1, intercept = 0)
+@
+}
+\caption{Gene-wise standard deviations of observed vs simulated data. For most genes, the standard devations are similar, but there are outliers for which the standard deviation in the observed data is very low, whereas it is high in the simulated data.}
+\label{f:gwsd_sim_true}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\scalebox{.8}{
+<<c24, echo = FALSE>>=
+# observed vs simulated libsizes per spot
+libsize.sim.spots = apply(expr.mat, 2, sum)
+df = data.frame("simulated"= libsize.sim.spots, "observed" = libsize.true)
+ggplot(melt(df), aes(x = variable, y = value)) +
+  geom_boxplot() + theme(panel.border = element_rect(colour = "black", fill=NA, linewidth = 1)) +
+  xlab("") + ylab("librarysize per spot")
+@
+}
+\caption{Observed vs simulated librarysizes per spot. The distribution of librarysizes per spots stays roughly the same in the simulated data.}
+\label{f:spot_libsize_sim_true}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\scalebox{.8}{
+<<c25, echo = FALSE>>=
+# observed vs simulated standard deviations per spot
+sd.sim.spots = sqrt(apply(expr.mat, 2, var))
+sd.true.spots = sqrt(apply(counts.spe[rownames(expr.mat),], 2, var))
+df = data.frame("simulated" = sd.sim.spots, "observed" = sd.true.spots)
+ggplot(melt(df), aes(x = variable, y = value)) +
+  geom_boxplot() + theme(panel.border = element_rect(colour = "black", fill=NA, linewidth = 1)) +
+  xlab("") + ylab("standard deviation per spot")
+@
+}
+\caption{Observed vs simulated standard devations of expressions per spot. The distribution of standard deviations per spots stays roughly the same in the simulated data.}
+\label{f:spot_sd_sim_true}
+\end{figure}
+
+\end{document}
